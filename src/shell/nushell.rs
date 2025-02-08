@@ -9,24 +9,17 @@ use crate::shell::{ActivateOptions, Shell};
 #[derive(Default)]
 pub struct Nushell {}
 
-enum EnvOp<'a> {
-    Set { key: &'a str, val: &'a str },
-    Hide { key: &'a str },
-}
-
-impl Display for EnvOp<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EnvOp::Set { key, val } => writeln!(f, "set,{key},{val}"),
-            EnvOp::Hide { key } => writeln!(f, "hide,{key},"),
+impl Nushell {
+    fn need_escape(ch: char) -> bool {
+        match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '=' | '/' | ',' | '.' | '+' => false,
+            _ => true,
         }
     }
-}
 
-impl Nushell {
-    fn escape_csv_value(s: &str) -> String {
-        if s.contains(['\r', '\n', '"', ',']) {
-            format!("\"{}\"", s.replace('"', "\"\""))
+    fn escape_string_raw(s: &str) -> String {
+        if s.contains(Self::need_escape) {
+            format!("r#'{}'#", s)
         } else {
             s.to_owned()
         }
@@ -109,19 +102,20 @@ impl Shell for Nushell {
     }
 
     fn set_env(&self, k: &str, v: &str) -> String {
-        let k = Nushell::escape_csv_value(k);
-        let v = Nushell::escape_csv_value(v);
-
-        EnvOp::Set { key: &k, val: &v }.to_string()
+        let k = Nushell::escape_string_raw(k);
+        let v = Nushell::escape_string_raw(v);
+        format!("$env | upsert {k} {v}\n")
     }
 
     fn prepend_env(&self, k: &str, v: &str) -> String {
-        format!("$env.{k} = ($env.{k} | prepend '{v}')\n")
+        let k = Nushell::escape_string_raw(k);
+        let v = Nushell::escape_string_raw(v);
+        format!("$env.{k} = ($env.{k} | split row (char esep) | prepend {v})\n")
     }
 
     fn unset_env(&self, k: &str) -> String {
-        let k = Nushell::escape_csv_value(k);
-        EnvOp::Hide { key: k.as_ref() }.to_string()
+        let k = Nushell::escape_string_raw(k);
+        format!("hide-env {k} --ignore-errors\n")
     }
 }
 
@@ -155,18 +149,18 @@ mod tests {
 
     #[test]
     fn test_set_env() {
-        assert_snapshot!(Nushell::default().set_env("FOO", "1"));
+        assert_snapshot!(Nushell::default().set_env("FOO", "1 2"));
     }
 
     #[test]
     fn test_prepend_env() {
         let sh = Nushell::default();
-        assert_snapshot!(replace_path(&sh.prepend_env("PATH", "/some/dir:/2/dir")));
+        assert_snapshot!(replace_path(&sh.prepend_env("PATH", "/some/dir")));
     }
 
     #[test]
     fn test_unset_env() {
-        assert_snapshot!(Nushell::default().unset_env("FOO"));
+        assert_snapshot!(Nushell::default().unset_env("FOO BAR"));
     }
 
     #[test]

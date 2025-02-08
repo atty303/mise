@@ -1,6 +1,6 @@
 ---
 source: src/shell/nushell.rs
-expression: "Nushell::default().set_env(\"FOO\", \"1\")"
+expression: "Nushell::default().set_env(\"FOO\", \"1 2\")"
 snapshot_kind: text
 ---
-set,FOO,1
+$env | upsert FOO r#'1 2'#

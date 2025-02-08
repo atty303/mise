@@ -1,6 +1,6 @@
 ---
 source: src/shell/nushell.rs
-expression: "Nushell::default().unset_env(\"FOO\")"
+expression: "Nushell::default().unset_env(\"FOO BAR\")"
 snapshot_kind: text
 ---
-hide,FOO,
+hide-env r#'FOO BAR'# --ignore-errors
